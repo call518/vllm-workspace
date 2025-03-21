@@ -118,6 +118,32 @@ cd models/Qwen2.5-14B-Instruct
 wget https://huggingface.co/TheBloke/Qwen2.5-14B-Instruct-GGUF/resolve/main/Qwen2.5-14B-Instruct-Q4_K_M.gguf
 ```
 
+## EC2 Instance Management
+
+### After Starting/Restarting EC2 Instance
+
+When you start or restart your EC2 instance, you need to reconfigure Docker to use the correct storage location and permissions. Use the provided setup script:
+
+```bash
+# First, run the setup script
+./setup_docker.sh
+
+# Then start your vLLM container
+./run_vllm.sh
+```
+
+The setup script:
+1. Configures Docker to use the larger NVMe volume
+2. Sets proper permissions for Docker directories
+3. Ensures Docker daemon is configured correctly
+4. Pulls the latest vLLM Docker image
+5. Cleans up any stale Docker resources
+
+This setup needs to be run after each EC2 instance restart because:
+- Docker service restarts with default settings
+- Storage permissions might need to be reestablished
+- Docker daemon configuration needs to be verified
+
 ### 2. Run the container
 
 Open a shell script to run the container:

@@ -39,6 +39,9 @@ docker run -it \
     --gpus all \
     --network="host" \
     --ipc=host \
+    --shm-size=1g \
+    --ulimit memlock=-1 \
+    --ulimit stack=67108864 \
     -v "${MODEL_DIR}:/models" \
     -v "${CONFIG_DIR}:/config" \
     vllm/vllm-openai:latest \
@@ -47,10 +50,13 @@ docker run -it \
     --tensor-parallel-size 1 \
     --host "0.0.0.0" \
     --port 5000 \
-    --gpu-memory-utilization 0.9 \
+    --gpu-memory-utilization 1.0 \
     --served-model-name "VLLMQwen2.5-14B" \
-    --max-num-batched-tokens 8192 \
-    --max-num-seqs 256 \
-    --max-model-len 8192 \
+    --max-num-batched-tokens 16384 \
+    --max-num-seqs 512 \
+    --max-model-len 4096 \
+    --generation-config /config \
     --chat-template /config/qwen_template.json \
-    --generation-config /config 
+    --enforce-eager \
+    --gpu-memory-utilization 1.0 \
+    --swap-space 1 
