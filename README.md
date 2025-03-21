@@ -126,9 +126,11 @@ When you start or restart your EC2 instance, you need to reconfigure Docker to u
 
 ```bash
 # First, run the setup script
+chmod +x setup_docker.sh
 ./setup_docker.sh
 
 # Then start your vLLM container
+chmod +x run_vllm.sh
 ./run_vllm.sh
 ```
 
@@ -143,15 +145,6 @@ This setup needs to be run after each EC2 instance restart because:
 - Docker service restarts with default settings
 - Storage permissions might need to be reestablished
 - Docker daemon configuration needs to be verified
-
-### 2. Run the container
-
-Open a shell script to run the container:
-
-```bash
-chmod +x run_vllm.sh
-./run_vllm.sh
-```
 
 ## Troubleshooting
 
