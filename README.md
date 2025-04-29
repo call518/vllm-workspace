@@ -106,7 +106,71 @@ mkdir -p models/Qwen2.5-14B-Instruct
 mkdir -p config
 ```
 
-### 2. Download the Model
+### 2. Create Run Script
+
+Create a shell script to run the container:
+
+```bash
+nano run_vllm.sh
+```
+
+Add the following content:
+
+```bash
+#!/bin/bash
+
+# Check available disk space on both relevant volumes
+ROOT_SPACE=$(df -h / | awk 'NR==2 {print $4}')
+DOCKER_SPACE=$(df -h /opt/dlami/nvme | awk 'NR==2 {print $4}')
+echo "Available space on root: $ROOT_SPACE"
+echo "Available space on Docker volume: $DOCKER_SPACE"
+
+# Check if Docker daemon is running
+docker info > /dev/null 2>&1
+if [ $? -ne 0 ]; then
+  echo "Docker daemon is not running. Starting Docker..."
+  sudo systemctl start docker
+fi
+
+# Clean up Docker resources before running
+echo "Cleaning up Docker resources..."
+docker system prune -f
+
+# Get absolute paths
+CURRENT_DIR=$(pwd)
+MODEL_DIR="${CURRENT_DIR}/models"
+CONFIG_DIR="${CURRENT_DIR}/config"
+
+# Run vLLM Docker container for Qwen2.5-14B-Instruct model
+echo "Starting vLLM container..."
+docker run -it \
+    --runtime nvidia \
+    --gpus all \
+    --network="host" \
+    --ipc=host \
+    -v "${MODEL_DIR}:/models" \
+    -v "${CONFIG_DIR}:/config" \
+    vllm/vllm-openai:latest \
+    --model "/models/Qwen2.5-14B-Instruct/Qwen2.5-14B-Instruct-Q4_K_M.gguf" \
+    --dtype auto \
+    --tensor-parallel-size 1 \
+    --host "0.0.0.0" \
+    --port 5000 \
+    --gpu-memory-utilization 0.9 \
+    --served-model-name "VLLMQwen2.5-14B" \
+    --max-num-batched-tokens 8192 \
+    --max-num-seqs 256 \
+    --max-model-len 8192 \
+    --generation-config /config
+```
+
+Make the script executable:
+
+```bash
+chmod +x run_vllm.sh
+```
+
+### 3. Download the Model
 
 Download the quantized GGUF version of Qwen2.5-14B-Instruct model:
 
@@ -118,33 +182,29 @@ cd models/Qwen2.5-14B-Instruct
 wget https://huggingface.co/TheBloke/Qwen2.5-14B-Instruct-GGUF/resolve/main/Qwen2.5-14B-Instruct-Q4_K_M.gguf
 ```
 
-## EC2 Instance Management
+### 4. Create Configuration File
 
-### After Starting/Restarting EC2 Instance
-
-When you start or restart your EC2 instance, you need to reconfigure Docker to use the correct storage location and permissions. Use the provided setup script:
+Create a basic configuration file for generation parameters:
 
 ```bash
-# First, run the setup script
-chmod +x setup_docker.sh
-./setup_docker.sh
-
-# Then start your vLLM container
-chmod +x run_vllm.sh
-./run_vllm.sh
+nano config/config.json
 ```
 
-The setup script:
-1. Configures Docker to use the larger NVMe volume
-2. Sets proper permissions for Docker directories
-3. Ensures Docker daemon is configured correctly
-4. Pulls the latest vLLM Docker image
-5. Cleans up any stale Docker resources
+Add the following content:
 
-This setup needs to be run after each EC2 instance restart because:
-- Docker service restarts with default settings
-- Storage permissions might need to be reestablished
-- Docker daemon configuration needs to be verified
+```json
+{
+  "temperature": 0.7,
+  "top_p": 0.9,
+  "max_tokens": 1024
+}
+```
+
+### 5. Run the Container
+
+```bash
+./run_vllm.sh
+```
 
 ## Troubleshooting
 
@@ -171,39 +231,6 @@ If you encounter space issues despite configuring Docker to use the larger volum
    ```bash
    docker pull vllm/vllm-openai:latest
    ```
-
-Here are the commands to fix this problem:
-
-```bash
-# Stop Docker service
-sudo systemctl stop docker
-
-# Create a new directory for Docker data
-sudo mkdir -p /opt/dlami/nvme/docker
-
-# Move existing Docker data (optional, but preserves existing images)
-sudo rsync -aP /var/lib/docker/ /opt/dlami/nvme/docker/
-
-# Create or edit Docker daemon config
-sudo vim /etc/docker/daemon.json
-
-# Add this configuration:
-{
-    "runtimes": {
-        "nvidia": {
-            "args": [],
-            "path": "nvidia-container-runtime"
-        }
-    },
-    "data-root": "/opt/dlami/nvme/docker"
-}
-
-# Restart Docker service
-sudo systemctl start docker
-
-# Verify Docker is using the new location
-docker info | grep "Docker Root Dir"
-```
 
 ### GGUF Model Loading Issues
 
@@ -325,6 +352,219 @@ curl http://localhost:5000/v1/chat/completions \
 ```
 
 You can also access the OpenAPI documentation by opening http://localhost:5000/docs in your browser, which will show you all the available endpoints and parameters.
+
+## Utility Scripts and GUI
+
+For easier interaction with the vLLM API, several utility scripts have been created:
+
+### 1. Test Query Script
+
+Create a script to test the chat completion API with pretty formatting:
+
+```bash
+#!/bin/bash
+
+# Test vLLM chat completion API
+curl http://localhost:5000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen2.5-14B-Instruct",
+    "messages": [
+      {"role": "system", "content": "You are a helpful assistant."},
+      {"role": "user", "content": "Hello, how are you?"}
+    ],
+    "temperature": 0.7,
+    "max_tokens": 100
+  }' | jq
+```
+
+Save as `test-query.sh` and make it executable with `chmod +x test-query.sh`.
+
+### 2. List Models Script
+
+Create a script to list available models with readable output:
+
+```bash
+#!/bin/bash
+
+# List available models in vLLM server
+curl http://localhost:5000/v1/models | jq
+```
+
+Save as `list-models.sh` and make it executable with `chmod +x list-models.sh`.
+
+### 3. Gradio GUI Interface
+
+A simple web interface using Gradio can be created to interact with vLLM:
+
+```bash
+#!/bin/bash
+
+# Install required packages if not already installed
+pip install gradio openai
+
+# Create a simple Gradio UI for vLLM
+cat > vllm_gradio_ui.py << 'EOF'
+import gradio as gr
+import argparse
+from openai import OpenAI
+
+def format_history(history):
+    formatted_history = [{
+        "role": "system", 
+        "content": "You are a helpful AI assistant."
+    }]
+    
+    for human, assistant in history:
+        formatted_history.append({"role": "user", "content": human})
+        formatted_history.append({"role": "assistant", "content": assistant})
+    
+    return formatted_history
+
+def predict(message, history, client, model_name, temperature):
+    # Format history to OpenAI chat format
+    formatted_history = format_history(history)
+    formatted_history.append({"role": "user", "content": message})
+    
+    # Send request to OpenAI API (vLLM server)
+    stream = client.chat.completions.create(
+        model=model_name,
+        messages=formatted_history,
+        temperature=temperature,
+        stream=True
+    )
+    
+    # Collect the response
+    full_response = ""
+    for chunk in stream:
+        chunk_content = chunk.choices[0].delta.content or ""
+        full_response += chunk_content
+        yield full_response
+
+def main():
+    parser = argparse.ArgumentParser(description='Gradio UI for vLLM')
+    parser.add_argument('--model', type=str, default="Qwen2.5-14B-Instruct", help='Model name')
+    parser.add_argument('--api-url', type=str, default="http://localhost:5000/v1", help='API base URL')
+    parser.add_argument('--api-key', type=str, default="", help='API key')
+    parser.add_argument('--temperature', type=float, default=0.7, help='Temperature')
+    parser.add_argument('--port', type=int, default=7860, help='Port for Gradio UI')
+    
+    args = parser.parse_args()
+    
+    # Create OpenAI client
+    client = OpenAI(api_key=args.api_key or "not-needed", base_url=args.api_url)
+    
+    # Create Gradio interface
+    with gr.Blocks(title="vLLM Chat Interface") as demo:
+        gr.Markdown(f"# Chat with {args.model}")
+        gr.Markdown("A simple chat interface powered by vLLM")
+        
+        chatbot = gr.Chatbot(height=500)
+        msg = gr.Textbox(placeholder="Type your message here...", container=False)
+        
+        with gr.Row():
+            submit_btn = gr.Button("Send")
+            clear_btn = gr.Button("Clear")
+        
+        # Temperature slider
+        temp_slider = gr.Slider(
+            minimum=0.0, maximum=1.0, value=args.temperature, step=0.1, 
+            label="Temperature", info="Higher values make output more random"
+        )
+            
+        def respond(message, chat_history, temperature):
+            if not message.strip():
+                return "", chat_history
+            
+            chat_history.append((message, ""))
+            return "", chat_history, predict(message, chat_history[:-1], client, args.model, temperature)
+        
+        def update_chatbot(history, response):
+            history[-1] = (history[-1][0], response)
+            return history
+            
+        def clear_conversation():
+            return []
+        
+        # Set up event handlers
+        msg.submit(
+            respond, 
+            [msg, chatbot, temp_slider], 
+            [msg, chatbot], 
+            queue=False
+        ).then(
+            update_chatbot,
+            [chatbot, respond.outputs[-1]],
+            [chatbot]
+        )
+        
+        submit_btn.click(
+            respond, 
+            [msg, chatbot, temp_slider], 
+            [msg, chatbot], 
+            queue=False
+        ).then(
+            update_chatbot,
+            [chatbot, respond.outputs[-1]],
+            [chatbot]
+        )
+        
+        clear_btn.click(clear_conversation, None, chatbot)
+    
+    # Launch the interface
+    demo.queue()
+    demo.launch(server_name="0.0.0.0", server_port=args.port, share=False)
+
+if __name__ == "__main__":
+    main()
+EOF
+
+echo "Created vllm_gradio_ui.py"
+echo "Starting Gradio UI for vLLM..."
+
+# Run the Gradio UI
+python vllm_gradio_ui.py "$@"
+```
+
+Save as `gui-demo.sh` and make it executable with `chmod +x gui-demo.sh`.
+
+### Running the GUI
+
+To run the web interface:
+
+```bash
+./gui-demo.sh
+```
+
+You can customize the settings with command-line parameters:
+
+```bash
+./gui-demo.sh --model "Qwen2.5-14B-Instruct" --api-url "http://localhost:5000/v1" --temperature 0.7 --port 7860
+```
+
+### Third-Party UIs
+
+Several third-party UI options are also available for vLLM:
+
+1. **nextjs-vllm-ui** - A beautiful ChatGPT-like interface
+   - GitHub: https://github.com/yoziru/nextjs-vllm-ui
+   - Run with Docker: `docker run --rm -d -p 3000:3000 -e VLLM_URL=http://host.docker.internal:5000 ghcr.io/yoziru/nextjs-vllm-ui:latest`
+
+2. **Open WebUI** - A full-featured web interface that works with vLLM
+   - Can be configured to use vLLM as the backend instead of Ollama
+   - Example Docker command:
+     ```bash
+     docker run -d -p 3000:8080 \
+       --name open-webui \
+       --restart always \
+       --env=OPENAI_API_BASE_URL=http://<your-ip>:5000/v1 \
+       --env=OPENAI_API_KEY=your-api-key \
+       --env=ENABLE_OLLAMA_API=false \
+       ghcr.io/open-webui/open-webui:main
+     ```
+
+3. **vllm-ui** - A simple Gradio-based interface designed for Vision Language Models
+   - GitHub: https://github.com/sammcj/vlm-ui
 
 ## Performance Tuning
 

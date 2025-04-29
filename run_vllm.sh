@@ -15,33 +15,41 @@ fi
 
 # Clean up Docker resources before running
 echo "Cleaning up Docker resources..."
-docker system prune -f
+sudo docker system prune -f
 
 # Get absolute paths
 CURRENT_DIR=$(pwd)
 MODEL_DIR="${CURRENT_DIR}/models"
 CONFIG_DIR="${CURRENT_DIR}/config"
 
-# Create a chat template file
-TEMPLATE_PATH="${CONFIG_DIR}/qwen_template.json"
-echo '{
-  "messages": [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "<|im_start|>user\n{{query}}<|im_end|>"},
-    {"role": "assistant", "content": "<|im_start|>assistant\n{{response}}<|im_end|>"}
-  ]
-}' > "$TEMPLATE_PATH"
+# Create directories with proper permissions
+sudo mkdir -p "${MODEL_DIR}"
+sudo mkdir -p "${CONFIG_DIR}"
 
-# Run vLLM Docker container for Qwen2.5-14B-Instruct model
+# Create a chat template file with proper permissions
+# TEMPLATE_PATH="${CONFIG_DIR}/qwen_template.json"
+# sudo bash -c "cat > ${TEMPLATE_PATH}" << 'EOL'
+# {
+#   "messages": [
+#     {"role": "system", "content": "You are a helpful assistant."},
+#     {"role": "user", "content": "<|im_start|>user\n{{query}}<|im_end|>"},
+#     {"role": "assistant", "content": "<|im_start|>assistant\n{{response}}<|im_end|>"}
+#   ]
+# }
+# EOL
+
+# Set proper permissions for the directories and files
+sudo chown -R $USER:$USER "${MODEL_DIR}"
+sudo chown -R $USER:$USER "${CONFIG_DIR}"
+# sudo chmod 644 "${TEMPLATE_PATH}"
+
+# Run vLLM Docker container
 echo "Starting vLLM container..."
-docker run -it \
+sudo docker run -it \
     --runtime nvidia \
     --gpus all \
     --network="host" \
     --ipc=host \
-    --shm-size=1g \
-    --ulimit memlock=-1 \
-    --ulimit stack=67108864 \
     -v "${MODEL_DIR}:/models" \
     -v "${CONFIG_DIR}:/config" \
     vllm/vllm-openai:latest \
@@ -50,13 +58,10 @@ docker run -it \
     --tensor-parallel-size 1 \
     --host "0.0.0.0" \
     --port 5000 \
-    --gpu-memory-utilization 1.0 \
-    --served-model-name "VLLMQwen2.5-14B" \
-    --max-num-batched-tokens 16384 \
-    --max-num-seqs 512 \
-    --max-model-len 4096 \
+    --gpu-memory-utilization 0.9 \
+    --served-model-name "Qwen2.5-14B-Instruct" \
+    --max-num-batched-tokens 8192 \
+    --max-num-seqs 256 \
+    --max-model-len 8192 \
     --generation-config /config \
-    --chat-template /config/qwen_template.json \
-    --enforce-eager \
-    --gpu-memory-utilization 1.0 \
-    --swap-space 1 
+    # --chat-template /config/qwen_template.json 
