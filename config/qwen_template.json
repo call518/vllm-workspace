@@ -1,7 +1,0 @@
-{
-  "messages": [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "<|im_start|>user\n{{query}}<|im_end|>"},
-    {"role": "assistant", "content": "<|im_start|>assistant\n{{response}}<|im_end|>"}
-  ]
-}

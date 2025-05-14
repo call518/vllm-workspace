@@ -9,6 +9,26 @@ This guide walks through the process of setting up and running the Qwen2.5-14B-I
 - Docker and NVIDIA Container Toolkit installed
 - At least 100GB of storage space (preferably more)
 
+## Hugging Face Login (Required for Private or Large Model Downloads)
+
+Before running vLLM with Hugging Face models, log in to the Hugging Face CLI to provide your access token. This is required for downloading most large models (including Qwen2.5-14B-Instruct) and for accessing private models.
+
+1. Install the Hugging Face CLI (if not already):
+   ```bash
+   pip install --upgrade huggingface_hub
+   ```
+2. Log in to Hugging Face:
+   ```bash
+   huggingface-cli login
+   ```
+   - Paste your access token when prompted. You can get your token from https://huggingface.co/settings/tokens
+
+3. (Optional) Set the token as an environment variable for Docker:
+   ```bash
+   export HUGGING_FACE_HUB_TOKEN=your_token_here
+   ```
+   - This allows Docker containers to access the token for model downloads.
+
 ## Initial Setup
 
 ### 1. Create EC2 Instance
@@ -24,7 +44,7 @@ Use an AWS Deep Learning AMI (DLAMI) with GPU support to simplify driver install
 
 Attach a large EBS volume (300GB recommended) to your instance.
 
-### 2. Configure Docker for NVIDIA Support
+### 1. Configure Docker for NVIDIA Support
 
 Ensure Docker and NVIDIA Container Toolkit are properly installed:
 
@@ -38,56 +58,12 @@ docker --version
 # Check NVIDIA Docker integration
 docker run --rm --gpus all nvidia/cuda:11.0-base nvidia-smi
 ```
-
-## Storage Configuration
-
-AWS instances often have multiple volumes with different sizes. To handle large models, configure Docker to use the larger storage volume:
-
-### 1. Identify Available Volumes
-
+### 2. Setup docker
 ```bash
-# Check disk layout
-lsblk
-
-# Check available space
-df -h
+./setup_docker.sh
 ```
 
-Typically AWS DLAMIs have two volumes:
-- NVMe root volume (e.g., `/dev/nvme0n1`)
-- Larger NVMe storage volume (e.g., `/dev/nvme1n1` mounted at `/opt/dlami/nvme`)
-
-### 2. Configure Docker to Use Larger Volume
-
-```bash
-# Create a directory for Docker data
-sudo mkdir -p /opt/dlami/nvme/docker
-
-# Configure Docker to use this directory
-sudo nano /etc/docker/daemon.json
-```
-
-Add the `data-root` setting to your `daemon.json` file:
-
-```json
-{
-    "runtimes": {
-        "nvidia": {
-            "args": [],
-            "path": "nvidia-container-runtime"
-        }
-    },
-    "data-root": "/opt/dlami/nvme/docker"
-}
-```
-
-Restart Docker to apply changes:
-
-```bash
-sudo systemctl restart docker
-```
-
-### 3. Verify Docker Storage Location
+### 3. Verify Docker Storage Location (optional)
 
 ```bash
 # Check Docker's root directory
@@ -98,112 +74,8 @@ docker info | grep "Docker Root Dir"
 
 ## Running the vLLM Container
 
-### 1. Create Directory Structure
-
 ```bash
-# Create directories for models and configuration
-mkdir -p models/Qwen2.5-14B-Instruct
-mkdir -p config
-```
-
-### 2. Create Run Script
-
-Create a shell script to run the container:
-
-```bash
-nano run_vllm.sh
-```
-
-Add the following content:
-
-```bash
-#!/bin/bash
-
-# Check available disk space on both relevant volumes
-ROOT_SPACE=$(df -h / | awk 'NR==2 {print $4}')
-DOCKER_SPACE=$(df -h /opt/dlami/nvme | awk 'NR==2 {print $4}')
-echo "Available space on root: $ROOT_SPACE"
-echo "Available space on Docker volume: $DOCKER_SPACE"
-
-# Check if Docker daemon is running
-docker info > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-  echo "Docker daemon is not running. Starting Docker..."
-  sudo systemctl start docker
-fi
-
-# Clean up Docker resources before running
-echo "Cleaning up Docker resources..."
-docker system prune -f
-
-# Get absolute paths
-CURRENT_DIR=$(pwd)
-MODEL_DIR="${CURRENT_DIR}/models"
-CONFIG_DIR="${CURRENT_DIR}/config"
-
-# Run vLLM Docker container for Qwen2.5-14B-Instruct model
-echo "Starting vLLM container..."
-docker run -it \
-    --runtime nvidia \
-    --gpus all \
-    --network="host" \
-    --ipc=host \
-    -v "${MODEL_DIR}:/models" \
-    -v "${CONFIG_DIR}:/config" \
-    vllm/vllm-openai:latest \
-    --model "/models/Qwen2.5-14B-Instruct/Qwen2.5-14B-Instruct-Q4_K_M.gguf" \
-    --dtype auto \
-    --tensor-parallel-size 1 \
-    --host "0.0.0.0" \
-    --port 5000 \
-    --gpu-memory-utilization 0.9 \
-    --served-model-name "VLLMQwen2.5-14B" \
-    --max-num-batched-tokens 8192 \
-    --max-num-seqs 256 \
-    --max-model-len 8192 \
-    --generation-config /config
-```
-
-Make the script executable:
-
-```bash
-chmod +x run_vllm.sh
-```
-
-### 3. Download the Model
-
-Download the quantized GGUF version of Qwen2.5-14B-Instruct model:
-
-```bash
-# Navigate to the models directory
-cd models/Qwen2.5-14B-Instruct
-
-# Download the model (adjust URL as needed)
-wget https://huggingface.co/TheBloke/Qwen2.5-14B-Instruct-GGUF/resolve/main/Qwen2.5-14B-Instruct-Q4_K_M.gguf
-```
-
-### 4. Create Configuration File
-
-Create a basic configuration file for generation parameters:
-
-```bash
-nano config/config.json
-```
-
-Add the following content:
-
-```json
-{
-  "temperature": 0.7,
-  "top_p": 0.9,
-  "max_tokens": 1024
-}
-```
-
-### 5. Run the Container
-
-```bash
-./run_vllm.sh
+./run_vllm.sh Qwen/Qwen2.5-7B-Instruct
 ```
 
 ## Troubleshooting
@@ -398,132 +270,7 @@ Save as `list-models.sh` and make it executable with `chmod +x list-models.sh`.
 A simple web interface using Gradio can be created to interact with vLLM:
 
 ```bash
-#!/bin/bash
-
-# Install required packages if not already installed
-pip install gradio openai
-
-# Create a simple Gradio UI for vLLM
-cat > vllm_gradio_ui.py << 'EOF'
-import gradio as gr
-import argparse
-from openai import OpenAI
-
-def format_history(history):
-    formatted_history = [{
-        "role": "system", 
-        "content": "You are a helpful AI assistant."
-    }]
-    
-    for human, assistant in history:
-        formatted_history.append({"role": "user", "content": human})
-        formatted_history.append({"role": "assistant", "content": assistant})
-    
-    return formatted_history
-
-def predict(message, history, client, model_name, temperature):
-    # Format history to OpenAI chat format
-    formatted_history = format_history(history)
-    formatted_history.append({"role": "user", "content": message})
-    
-    # Send request to OpenAI API (vLLM server)
-    stream = client.chat.completions.create(
-        model=model_name,
-        messages=formatted_history,
-        temperature=temperature,
-        stream=True
-    )
-    
-    # Collect the response
-    full_response = ""
-    for chunk in stream:
-        chunk_content = chunk.choices[0].delta.content or ""
-        full_response += chunk_content
-        yield full_response
-
-def main():
-    parser = argparse.ArgumentParser(description='Gradio UI for vLLM')
-    parser.add_argument('--model', type=str, default="Qwen2.5-14B-Instruct", help='Model name')
-    parser.add_argument('--api-url', type=str, default="http://localhost:5000/v1", help='API base URL')
-    parser.add_argument('--api-key', type=str, default="", help='API key')
-    parser.add_argument('--temperature', type=float, default=0.7, help='Temperature')
-    parser.add_argument('--port', type=int, default=7860, help='Port for Gradio UI')
-    
-    args = parser.parse_args()
-    
-    # Create OpenAI client
-    client = OpenAI(api_key=args.api_key or "not-needed", base_url=args.api_url)
-    
-    # Create Gradio interface
-    with gr.Blocks(title="vLLM Chat Interface") as demo:
-        gr.Markdown(f"# Chat with {args.model}")
-        gr.Markdown("A simple chat interface powered by vLLM")
-        
-        chatbot = gr.Chatbot(height=500)
-        msg = gr.Textbox(placeholder="Type your message here...", container=False)
-        
-        with gr.Row():
-            submit_btn = gr.Button("Send")
-            clear_btn = gr.Button("Clear")
-        
-        # Temperature slider
-        temp_slider = gr.Slider(
-            minimum=0.0, maximum=1.0, value=args.temperature, step=0.1, 
-            label="Temperature", info="Higher values make output more random"
-        )
-            
-        def respond(message, chat_history, temperature):
-            if not message.strip():
-                return "", chat_history
-            
-            chat_history.append((message, ""))
-            return "", chat_history, predict(message, chat_history[:-1], client, args.model, temperature)
-        
-        def update_chatbot(history, response):
-            history[-1] = (history[-1][0], response)
-            return history
-            
-        def clear_conversation():
-            return []
-        
-        # Set up event handlers
-        msg.submit(
-            respond, 
-            [msg, chatbot, temp_slider], 
-            [msg, chatbot], 
-            queue=False
-        ).then(
-            update_chatbot,
-            [chatbot, respond.outputs[-1]],
-            [chatbot]
-        )
-        
-        submit_btn.click(
-            respond, 
-            [msg, chatbot, temp_slider], 
-            [msg, chatbot], 
-            queue=False
-        ).then(
-            update_chatbot,
-            [chatbot, respond.outputs[-1]],
-            [chatbot]
-        )
-        
-        clear_btn.click(clear_conversation, None, chatbot)
-    
-    # Launch the interface
-    demo.queue()
-    demo.launch(server_name="0.0.0.0", server_port=args.port, share=False)
-
-if __name__ == "__main__":
-    main()
-EOF
-
-echo "Created vllm_gradio_ui.py"
-echo "Starting Gradio UI for vLLM..."
-
-# Run the Gradio UI
-python vllm_gradio_ui.py "$@"
+./gui-demo.sh
 ```
 
 Save as `gui-demo.sh` and make it executable with `chmod +x gui-demo.sh`.

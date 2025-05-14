@@ -1,6 +1,17 @@
 #!/bin/bash
 
-# Check available disk space on both relevant volumes
+# Usage: ./run_vllm.sh [MODEL_NAME]
+# Example: ./run_vllm.sh Qwen/Qwen2.5-14B-Instruct
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  echo "Usage: $0 [MODEL_NAME]"
+  echo "  MODEL_NAME: HuggingFace model ID (default: Qwen/Qwen2.5-14B-Instruct)"
+  exit 0
+fi
+
+MODEL_NAME=${1:-"Qwen/Qwen2.5-14B-Instruct"}
+
+# Check available disk space
 ROOT_SPACE=$(df -h / | awk 'NR==2 {print $4}')
 DOCKER_SPACE=$(df -h /opt/dlami/nvme | awk 'NR==2 {print $4}')
 echo "Available space on root: $ROOT_SPACE"
@@ -17,31 +28,9 @@ fi
 echo "Cleaning up Docker resources..."
 sudo docker system prune -f
 
-# Get absolute paths
-CURRENT_DIR=$(pwd)
-MODEL_DIR="${CURRENT_DIR}/models"
-CONFIG_DIR="${CURRENT_DIR}/config"
-
-# Create directories with proper permissions
-sudo mkdir -p "${MODEL_DIR}"
-sudo mkdir -p "${CONFIG_DIR}"
-
-# Create a chat template file with proper permissions
-# TEMPLATE_PATH="${CONFIG_DIR}/qwen_template.json"
-# sudo bash -c "cat > ${TEMPLATE_PATH}" << 'EOL'
-# {
-#   "messages": [
-#     {"role": "system", "content": "You are a helpful assistant."},
-#     {"role": "user", "content": "<|im_start|>user\n{{query}}<|im_end|>"},
-#     {"role": "assistant", "content": "<|im_start|>assistant\n{{response}}<|im_end|>"}
-#   ]
-# }
-# EOL
-
-# Set proper permissions for the directories and files
-sudo chown -R $USER:$USER "${MODEL_DIR}"
-sudo chown -R $USER:$USER "${CONFIG_DIR}"
-# sudo chmod 644 "${TEMPLATE_PATH}"
+# Create HuggingFace cache directory for model downloads
+HF_CACHE_DIR="${HOME}/.cache/huggingface"
+mkdir -p "${HF_CACHE_DIR}"
 
 # Run vLLM Docker container
 echo "Starting vLLM container..."
@@ -50,18 +39,17 @@ sudo docker run -it \
     --gpus all \
     --network="host" \
     --ipc=host \
-    -v "${MODEL_DIR}:/models" \
-    -v "${CONFIG_DIR}:/config" \
+    -v "${HF_CACHE_DIR}:/root/.cache/huggingface" \
+    -e HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN}" \
     vllm/vllm-openai:latest \
-    --model "/models/Qwen2.5-14B-Instruct/Qwen2.5-14B-Instruct-Q4_K_M.gguf" \
+    --model "$MODEL_NAME" \
     --dtype auto \
     --tensor-parallel-size 1 \
     --host "0.0.0.0" \
     --port 5000 \
     --gpu-memory-utilization 0.9 \
-    --served-model-name "Qwen2.5-14B-Instruct" \
+    --served-model-name "VLLMQwen2.5-14B" \
     --max-num-batched-tokens 8192 \
     --max-num-seqs 256 \
     --max-model-len 8192 \
-    --generation-config /config \
-    # --chat-template /config/qwen_template.json 
+    --trust-remote-code

@@ -29,7 +29,7 @@ def format_history(history):
 
 def main():
     parser = argparse.ArgumentParser(description='Gradio UI for vLLM')
-    parser.add_argument('--model', type=str, default="Qwen2.5-14B-Instruct", help='Model name')
+    parser.add_argument('--model', type=str, default="VLLMQwen2.5-14B", help='Model name')
     parser.add_argument('--api-url', type=str, default="http://localhost:5000/v1", help='API base URL')
     parser.add_argument('--api-key', type=str, default="", help='API key')
     parser.add_argument('--temperature', type=float, default=0.7, help='Temperature')
