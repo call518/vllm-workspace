@@ -9,13 +9,13 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
   exit 0
 fi
 
-MODEL_NAME=${1:-"Qwen/Qwen2.5-14B-Instruct"}
+MODEL_NAME=${1:-"Qwen/Qwen2.5-3B-Instruct"}
 
 # Check available disk space
 ROOT_SPACE=$(df -h / | awk 'NR==2 {print $4}')
-DOCKER_SPACE=$(df -h /opt/dlami/nvme | awk 'NR==2 {print $4}')
 echo "Available space on root: $ROOT_SPACE"
-echo "Available space on Docker volume: $DOCKER_SPACE"
+#DOCKER_SPACE=$(df -h /var/lib/docker | awk 'NR==2 {print $4}')
+#echo "Available space on Docker volume: $DOCKER_SPACE"
 
 # Check if Docker daemon is running
 docker info > /dev/null 2>&1
