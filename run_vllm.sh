@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Usage: ./run_vllm.sh [MODEL_NAME]
-# Example: ./run_vllm.sh Qwen/Qwen2.5-14B-Instruct
+# Example: ./run_vllm.sh Qwen/Qwen2.5-3B-Instruct
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
   echo "Usage: $0 [MODEL_NAME]"
@@ -9,7 +9,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
   exit 0
 fi
 
-MODEL_NAME=${1:-"Qwen/Qwen2.5-3B-Instruct"}
+MODEL_NAME=${1:-"Qwen/Qwen2.5-1.5B-Instruct"}
 
 # Check available disk space
 ROOT_SPACE=$(df -h / | awk 'NR==2 {print $4}')
@@ -32,9 +32,13 @@ sudo docker system prune -f
 HF_CACHE_DIR="${HOME}/.cache/huggingface"
 mkdir -p "${HF_CACHE_DIR}"
 
+# Set HUGGING_FACE_HUB_TOKEN
+HUGGING_FACE_HUB_TOKEN=$(cat ~/.huggingface/token)
+
 # Run vLLM Docker container
 echo "Starting vLLM container..."
 sudo docker run -it \
+    --name vLLM-Workspace \
     --runtime nvidia \
     --gpus all \
     --network="host" \
@@ -47,8 +51,8 @@ sudo docker run -it \
     --tensor-parallel-size 1 \
     --host "0.0.0.0" \
     --port 5000 \
-    --gpu-memory-utilization 0.9 \
-    --served-model-name "VLLMQwen2.5-14B" \
+    --gpu-memory-utilization 1.0 \
+    --served-model-name "VLLM-Qwen" \
     --max-num-batched-tokens 8192 \
     --max-num-seqs 256 \
     --max-model-len 8192 \
