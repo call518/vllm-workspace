@@ -44,7 +44,7 @@ sudo docker run -it --rm \
     --name vLLM-Workspace \
     --runtime nvidia \
     --gpus all \
-    --network="host" \
+    -p 5000:5000 \
     --ipc=host \
     -v "${HF_CACHE_DIR}:/root/.cache/huggingface" \
     -e HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN}" \
