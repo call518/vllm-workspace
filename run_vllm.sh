@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # Usage: ./run_vllm.sh [MODEL_NAME]
-# Example: ./run_vllm.sh Qwen/Qwen2.5-3B-Instruct
+# Example: ./run_vllm.sh Qwen/Qwen2.5-0.5B-Instruct
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
   echo "Usage: $0 [MODEL_NAME]"
-  echo "  MODEL_NAME: HuggingFace model ID (default: Qwen/Qwen2.5-14B-Instruct)"
+  echo "  MODEL_NAME: HuggingFace model ID (default: Qwen/Qwen2.5-0.5B-Instruct)"
   exit 0
 fi
 
-MODEL_NAME=${1:-"Qwen/Qwen2.5-1.5B-Instruct"}
+MODEL_NAME=${1:-"Qwen/Qwen2.5-0.5B-Instruct"}
 
 # Check available disk space
 ROOT_SPACE=$(df -h / | awk 'NR==2 {print $4}')
@@ -37,7 +37,10 @@ HUGGING_FACE_HUB_TOKEN=$(cat ~/.huggingface/token)
 
 # Run vLLM Docker container
 echo "Starting vLLM container..."
-sudo docker run -it \
+DOCKER_IMAGE="vllm/vllm-openai:v0.9.2"
+#DOCKER_IMAGE="vllm/vllm-openai:v0.9.1"
+#DOCKER_IMAGE="vllm/vllm-openai:v0.9.0.1"
+sudo docker run -it --rm \
     --name vLLM-Workspace \
     --runtime nvidia \
     --gpus all \
@@ -45,7 +48,7 @@ sudo docker run -it \
     --ipc=host \
     -v "${HF_CACHE_DIR}:/root/.cache/huggingface" \
     -e HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN}" \
-    vllm/vllm-openai:latest \
+    ${DOCKER_IMAGE} \
     --model "$MODEL_NAME" \
     --dtype auto \
     --tensor-parallel-size 1 \
