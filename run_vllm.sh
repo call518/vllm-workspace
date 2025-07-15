@@ -1,15 +1,15 @@
 #!/bin/bash
 
 # Usage: ./run_vllm.sh [MODEL_NAME]
-# Example: ./run_vllm.sh Qwen/Qwen2.5-0.5B-Instruct
+# Example: ./run_vllm.sh Qwen/Qwen2.5-3B-Instruct
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
   echo "Usage: $0 [MODEL_NAME]"
-  echo "  MODEL_NAME: HuggingFace model ID (default: Qwen/Qwen2.5-0.5B-Instruct)"
+  echo "  MODEL_NAME: HuggingFace model ID (default: Qwen/Qwen2.5-3B-Instruct)"
   exit 0
 fi
 
-MODEL_NAME=${1:-"Qwen/Qwen2.5-0.5B-Instruct"}
+MODEL_NAME=${1:-"Qwen/Qwen2.5-3B-Instruct"}
 
 # Check available disk space
 ROOT_SPACE=$(df -h / | awk 'NR==2 {print $4}')
@@ -40,7 +40,8 @@ echo "Starting vLLM container..."
 DOCKER_IMAGE="vllm/vllm-openai:v0.9.2"
 #DOCKER_IMAGE="vllm/vllm-openai:v0.9.1"
 #DOCKER_IMAGE="vllm/vllm-openai:v0.9.0.1"
-sudo docker run -it --rm \
+#sudo docker run -it --rm \
+sudo docker run -d --rm \
     --name vLLM-Workspace \
     --runtime nvidia \
     --gpus all \
@@ -55,7 +56,7 @@ sudo docker run -it --rm \
     --host "0.0.0.0" \
     --port 5000 \
     --gpu-memory-utilization 1.0 \
-    --served-model-name "VLLM-Qwen" \
+    --served-model-name "vLLM-Qwen2.5-3B-Instruct" \
     --max-num-batched-tokens 8192 \
     --max-num-seqs 256 \
     --max-model-len 8192 \
