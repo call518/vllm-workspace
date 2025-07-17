@@ -40,24 +40,49 @@ echo "Starting vLLM container..."
 DOCKER_IMAGE="vllm/vllm-openai:v0.9.2"
 #DOCKER_IMAGE="vllm/vllm-openai:v0.9.1"
 #DOCKER_IMAGE="vllm/vllm-openai:v0.9.0.1"
-#sudo docker run -it --rm \
-sudo docker run -d --rm \
+
+#sudo docker run -d \
+#    --name vLLM-Workspace \
+#    --runtime nvidia \
+#    --gpus all \
+#    -p 5000:5000 \
+#    --ipc=host \
+#    -v "${HF_CACHE_DIR}:/root/.cache/huggingface" \
+#    -e HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN}" \
+#    ${DOCKER_IMAGE} \
+#    --model "${MODEL_NAME}" \
+#    --dtype auto \
+#    --tensor-parallel-size 1 \
+#    --host "0.0.0.0" \
+#    --port 5000 \
+#    --gpu-memory-utilization 1.0 \
+#    --served-model-name "${MODEL_NAME}" \
+#    --max-num-batched-tokens 8192 \
+#    --max-num-seqs 256 \
+#    --max-model-len 8192 \
+#    --trust-remote-code
+
+docker_args=(
     --name vLLM-Workspace \
     --runtime nvidia \
     --gpus all \
+    #--network="host" \
     -p 5000:5000 \
     --ipc=host \
     -v "${HF_CACHE_DIR}:/root/.cache/huggingface" \
     -e HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN}" \
     ${DOCKER_IMAGE} \
-    --model "$MODEL_NAME" \
+    # --load-format gguf \
+    --model "${MODEL_NAME}" \
     --dtype auto \
-    --tensor-parallel-size 1 \
     --host "0.0.0.0" \
     --port 5000 \
-    --gpu-memory-utilization 1.0 \
-    --served-model-name "vLLM-Qwen2.5-3B-Instruct" \
+    --gpu-memory-utilization 0.9 \
+    #--cpu-offload-gb 16 \
+    --served-model-name "${MODEL_NAME}" \
     --max-num-batched-tokens 8192 \
-    --max-num-seqs 256 \
+    --max-num-seqs 2 \
     --max-model-len 8192 \
-    --trust-remote-code
+)
+
+sudo docker run -d "${docker_args[@]}"
