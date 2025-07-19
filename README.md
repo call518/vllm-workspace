@@ -1,3 +1,5 @@
+(INFO) forked from [schmitech/vllm-workspace](https://github.com/schmitech/vllm-workspace)
+
 # Setting Up vLLM with Qwen2.5-14B-Instruct on AWS
 
 This guide walks through the process of setting up and running the Qwen2.5-14B-Instruct model using vLLM on AWS EC2 instances, with solutions for common storage and configuration issues.

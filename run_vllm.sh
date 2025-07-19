@@ -3,13 +3,20 @@
 # Usage: ./run_vllm.sh [MODEL_NAME]
 # Example: ./run_vllm.sh Qwen/Qwen2.5-3B-Instruct
 
+#DEFAULT_MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
+DEFAULT_MODEL_NAME="Qwen/Qwen2.5-3B-Instruct"
+
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
   echo "Usage: $0 [MODEL_NAME]"
-  echo "  MODEL_NAME: HuggingFace model ID (default: Qwen/Qwen2.5-3B-Instruct)"
+  echo "  MODEL_NAME: HuggingFace model ID (default: ${DEFAULT_MODEL_NAME})"
   exit 0
 fi
 
-MODEL_NAME=${1:-"Qwen/Qwen2.5-3B-Instruct"}
+MODEL_NAME=${1}
+
+if [ "X${MODEL_NAME}" == "X" ]; then
+  MODEL_NAME=${DEFAULT_MODEL_NAME}
+fi
 
 # Check available disk space
 ROOT_SPACE=$(df -h / | awk 'NR==2 {print $4}')
@@ -74,15 +81,25 @@ docker_args=(
     ${DOCKER_IMAGE} \
     # --load-format gguf \
     --model "${MODEL_NAME}" \
-    --dtype auto \
-    --host "0.0.0.0" \
-    --port 5000 \
-    --gpu-memory-utilization 0.9 \
+    --tokenizer Qwen/Qwen2.5-3B-Instruct \
+    #--dtype auto \
+    --gpu-memory-utilization 1.0 \
     #--cpu-offload-gb 16 \
     --served-model-name "${MODEL_NAME}" \
     --max-num-batched-tokens 8192 \
+    #--max-num-batched-tokens 4096 \
     --max-num-seqs 4 \
     --max-model-len 8192 \
+    #--max-model-len 4096 \
+    #--tensor_parallel_size 4 \
+    #--pipeline_parallel_size 2 \
+    #--enforce-eager \
+    #--enable-prefix-caching \
+    #--enable-chunked-prefill \
+    #--num-scheduler-steps 10 \
+    #--speculative-config '{"method": "ngram"}' \
+    --host "0.0.0.0" \
+    --port 5000
 )
 
 sudo docker run -d "${docker_args[@]}"
