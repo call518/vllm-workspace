@@ -81,7 +81,6 @@ docker_args=(
     ${DOCKER_IMAGE} \
     # --load-format gguf \
     --model "${MODEL_NAME}" \
-    --tokenizer Qwen/Qwen2.5-3B-Instruct \
     #--dtype auto \
     --gpu-memory-utilization 1.0 \
     #--cpu-offload-gb 16 \
