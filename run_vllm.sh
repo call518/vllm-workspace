@@ -5,7 +5,8 @@
 
 #DEFAULT_MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct"
 #DEFAULT_MODEL_NAME="Qwen/Qwen2.5-3B-Instruct"
-DEFAULT_MODEL_NAME="Qwen/Qwen3-1.7B"
+DEFAULT_MODEL_NAME="Qwen/Qwen3-0.6B"
+#DEFAULT_MODEL_NAME="Qwen/Qwen3-1.7B"
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
   echo "Usage: $0 [MODEL_NAME]"
