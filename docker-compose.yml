@@ -1,0 +1,33 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.9.2
+    container_name: vLLM
+    ipc: host
+    ports:
+      - "5000:5000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    environment:
+      #NVIDIA_VISIBLE_DEVICES: "0,1"
+      NVIDIA_VISIBLE_DEVICES: "0"
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN}
+      # PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:64,expandable_segments:True"
+    command: >
+      --model unsloth/gemma-3-1b-it
+      --served-model-name "unsloth/gemma-3-4b-it"
+      --max-model-len 16384
+      --max-num-seqs 1
+      --gpu-memory-utilization 0.8
+      --quantization bitsandbytes
+      --dtype auto
+      --trust-remote-code
+      --enforce-eager
+      --host 0.0.0.0
+      --port 5000
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
